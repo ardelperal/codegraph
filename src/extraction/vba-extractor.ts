@@ -636,6 +636,20 @@ export class VbaExtractor {
       if (stack.length > 0) {
         this.scanSqlInLine(line, lineNum, sqlTargetsThisFile);
       }
+
+      // H1 fix: detect statement-form Sub calls (no parens, no `Call`
+      // keyword). Audit H1 (June 2026): the parens-only CALL_RE made the
+      // dominant VBA idiom invisible — `EstablecerDatos m_Error` on the
+      // Form_FormNCAuditoriaMotivoEliminado.cls fixture contributed
+      // nothing to the call graph. Walked here so we share the proc stack
+      // already maintained by this loop.
+      if (stack.length > 0 && !procedureStartLines.has(lineNum)) {
+        const stmtCall = this.detectStatementCall(line);
+        if (stmtCall) {
+          const caller = stack[stack.length - 1]!;
+          this.emitStatementCallEdge(caller, stmtCall, lineNum);
+        }
+      }
     }
 
     // Apply endLine to every emitted function node keyed by its startLine.
@@ -753,6 +767,84 @@ export class VbaExtractor {
     // `this.nodes.find(...)` was an O(n) linear scan per call site —
     // meaningful on real .cls files with hundreds of procedures.
     return this.functionNodeByName.get(name);
+  }
+
+  /**
+   * H1: detect a statement-form Sub call.
+   *
+   * Real VBA idioms:
+   *   `MySub`                           — bare no-argument statement call
+   *   `MySub arg1, Nz(x, 0)`            — bare statement call
+   *   `Call MySub arg1, Nz(x, 0)`       — Call keyword, no parens around call
+   *   `MySub(arg1, arg2)`               — parens call (handled by CALL_RE)
+   *   `Call MySub(arg1, arg2)`          — Call keyword + parens (also CALL_RE)
+   *
+   * Returns the called proc name if the line matches the statement form
+   * AND the proc name is in localProcs (same-file resolution). Returns
+   * null for declarations, assignments, comments, keyword lines, etc.
+   *
+   * The `Call` keyword form is handled by stripping `Call ` and
+   * running the same logic on the remainder — they're structurally the
+   * same call after the keyword.
+   */
+  private detectStatementCall(line: string): string | null {
+    let trimmed = line.trimStart();
+    if (!trimmed) return null;
+    // Strip `Call ` keyword if present — same call shape after.
+    if (/^Call\s/i.test(trimmed)) {
+      trimmed = trimmed.replace(/^Call\s+/i, '');
+    }
+    // Skip comment lines.
+    if (trimmed.startsWith("'") || trimmed.startsWith('Rem ')) return null;
+    // Skip declarations: Dim/Private/Public/Static/Global/Const/ReDim.
+    if (/^(Dim|Private|Public|Static|Global|Const|ReDim)\s/i.test(trimmed)) return null;
+    // Extract the leading identifier.
+    const m = /^(\p{L}[\p{L}\p{N}_]*)/u.exec(trimmed);
+    if (!m) return null;
+    const procName = m[1] ?? '';
+    const rest = trimmed.slice(procName.length);
+    // `MySub(...)` is parens-form and already handled by CALL_RE. Parentheses
+    // are valid later in statement-form argument expressions (`MySub Nz(x, 0)`),
+    // so only the character immediately after the proc name distinguishes the
+    // call form.
+    if (rest.startsWith('(')) return null;
+    // Bare `MySub` is a valid no-argument statement-form Sub call.
+    if (rest.length === 0) return procName;
+    const nextCh = trimmed.charAt(procName.length);
+    if (nextCh !== ' ' && nextCh !== '\t') return null;
+    const args = rest.trimStart();
+    // Skip leading-identifier assignments (`X = ...`). Do not reject `=` inside
+    // argument expressions because named arguments use `:=` and comparisons can
+    // appear in expressions.
+    if (args.startsWith('=')) return null;
+    return procName;
+  }
+
+  /**
+   * H1: emit a same-file `calls` edge for a statement-form Sub call.
+   * `caller` is the current procedure (from the stack); `procName` is
+   * the called procedure name. Emits a plain `calls` edge to the
+   * already-emitted function node.
+   */
+  private emitStatementCallEdge(
+    caller: ProcInfo,
+    procName: string,
+    lineNum: number,
+  ): void {
+    if (procName === caller.name) return; // skip self-call
+    if (VbaExtractor.CALL_KEYWORD_BLACKLIST.has(procName)) return;
+    if (VbaExtractor.RUNTIME_RECEIVER_BLACKLIST.has(procName)) return;
+    const bucket = this.localProcs.get(procName);
+    if (!bucket || !bucket[0]) return;
+    const target = this.findFunctionNodeByName(procName);
+    if (!target) return;
+    this.edges.push({
+      source: this.findOrCreateFunctionNodeId(caller),
+      target: target.id,
+      kind: 'calls',
+      line: lineNum,
+      column: 0,
+    });
   }
 
   private scanSqlInLine(

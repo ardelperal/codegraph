@@ -802,3 +802,170 @@ describe('VbaExtractor — function nodes carry the full body span (C2 invariant
     expect(noBody).toHaveLength(0);
   });
 });
+
+/**
+ * H1 invariant — statement-form Sub calls (no parens, no `Call` keyword)
+ * MUST emit same-file `calls` edges. Audit H1 (June 2026): the CALL_RE
+ * only matched the parens form, so the dominant VBA idiom
+ * (`EstablecerDatos m_Error` at statement position) was invisible. On
+ * the real form fixture, this dropped recall from "should be high" to
+ * near-zero for plain (non-qualified) Sub calls.
+ */
+describe('VbaExtractor — statement-form Sub calls (H1 invariant)', () => {
+  it('a bare statement call without parens emits a same-file calls edge', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Inner 1, 2',
+      'End Sub',
+      '',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    const callEdge = calls.find((e) => {
+      const t = r.nodes.find((n) => n.id === e.target);
+      return t?.name === 'Inner';
+    });
+    expect(callEdge).toBeDefined();
+    const source = r.nodes.find((n) => n.id === callEdge?.source);
+    expect(source?.name).toBe('Outer');
+  });
+
+  it('Call Sub() (with Call keyword AND parens) is caught by the existing CALL_RE', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Call Inner(1, 2)',
+      'End Sub',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('Call Sub (with Call keyword, no parens) emits a calls edge', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Call Inner 1, 2',
+      'End Sub',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a bare no-argument statement call emits a same-file calls edge', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Inner',
+      'End Sub',
+      'Public Sub Inner()',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const callEdge = r.edges.find((e) => {
+      if (e.kind !== 'calls') return false;
+      const source = r.nodes.find((n) => n.id === e.source);
+      const target = r.nodes.find((n) => n.id === e.target);
+      return source?.name === 'Outer' && target?.name === 'Inner';
+    });
+    expect(callEdge).toBeDefined();
+  });
+
+  it('a statement call with parentheses inside argument expressions emits a calls edge', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Inner Nz(x, 0), 2',
+      'End Sub',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const callEdge = r.edges.find((e) => {
+      if (e.kind !== 'calls') return false;
+      const source = r.nodes.find((n) => n.id === e.source);
+      const target = r.nodes.find((n) => n.id === e.target);
+      return source?.name === 'Outer' && target?.name === 'Inner';
+    });
+    expect(callEdge).toBeDefined();
+  });
+
+  it('a normal parens-form call is not double-counted by statement-form detection', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Inner(1, 2)',
+      'End Sub',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const innerCalls = r.edges.filter((e) => {
+      if (e.kind !== 'calls') return false;
+      const target = r.nodes.find((n) => n.id === e.target);
+      return target?.name === 'Inner';
+    });
+    expect(innerCalls).toHaveLength(1);
+  });
+
+  it('an assignment (X = ...) does NOT trigger a statement call', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    x = 1',
+      'End Sub',
+      'Public Sub Inner(a As Long, b As Long)',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a declaration (Dim x As Foo) does NOT trigger a statement call', () => {
+    const src = [
+      'Public Sub Outer()',
+      '    Dim x As Long',
+      'End Sub',
+    ].join('\n');
+    const r = extract('src/modules/Mod.bas', src);
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a real Dysflow form fixture has same-file calls edges from the statement-form pattern', () => {
+    // The form fixture has lines like `EstablecerDatos m_Error` and
+    // `CorreoAlAdministrador m_Error` — bare statement calls. Verify
+    // these get captured.
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const fix = path.resolve(
+      __dirname,
+      '..',
+      '__tests__',
+      'fixtures',
+      'vba',
+      'src',
+      'forms',
+      'Form_FormNCAuditoriaMotivoEliminado.cls',
+    );
+    if (!fs.existsSync(fix)) return;
+    const r = extract(fix, fs.readFileSync(fix, 'utf8'));
+    const statementCalls = r.edges.filter((e) => {
+      if (e.kind !== 'calls') return false;
+      const source = r.nodes.find((n) => n.id === e.source);
+      const t = r.nodes.find((n) => n.id === e.target);
+      return (
+        (e.line === 15 && source?.name === 'Form_Load' && t?.name === 'EstablecerDatos') ||
+        (e.line === 70 && source?.name === 'EstablecerDatos' && t?.name === 'EstableceColorBordes') ||
+        (e.line === 109 && source?.name === 'MotivoBorrado_AfterUpdate' && t?.name === 'EstableceColorBordes') ||
+        (e.line === 180 && source?.name === 'ComandoGrabar_Click' && t?.name === 'RellenarDatosObjeto') ||
+        (e.line === 195 && source?.name === 'ComandoGrabar_Click' && t?.name === 'EstablecerDatos')
+      );
+    });
+    expect(statementCalls).toHaveLength(5);
+  });
+});
