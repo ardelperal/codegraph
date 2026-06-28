@@ -604,3 +604,121 @@ End Property`;
     expect(nameFns.length).toBe(3);
   });
 });
+
+/**
+ * S3 invariant — `Dim x As SomeType` (unqualified, no dot) MUST emit a
+ * `references` edge to `SomeType` when `SomeType` is not a primitive.
+ * Audit S3 (June 2026): the previous implementation required a `.` in
+ * the type (DIM_QUAL_RE), so `Dim AC As ACAuditoria` emitted no edge
+ * and class→class flows were invisible — defeating the tool's value
+ * for the dominant VBA dependency form.
+ */
+describe('VbaExtractor — unqualified Dim emits a class reference (S3 invariant)', () => {
+  it('Dim x As UserClass emits a vba-name-resolution reference to UserClass', () => {
+    const src = `Public AC As ACAuditoria`;
+    const r = extract('src/classes/Container.cls', src);
+    const edge = r.edges.find(
+      (e) => e.kind === 'references' && e.metadata?.synthesizedBy === 'vba-name-resolution',
+    );
+    expect(edge).toBeDefined();
+    const target = r.nodes.find((n) => n.id === edge?.target);
+    expect(target?.name).toBe('ACAuditoria');
+  });
+
+  it('Dim x As Long (primitive) does NOT emit a reference edge', () => {
+    const src = `Public Count As Long`;
+    const r = extract('src/modules/Mod.bas', src);
+    const edges = r.edges.filter(
+      (e) => e.kind === 'references' && e.metadata?.synthesizedBy === 'vba-name-resolution',
+    );
+    expect(edges).toHaveLength(0);
+  });
+
+  it('Dim x As String (primitive) does NOT emit a reference edge', () => {
+    const src = `Public Name As String`;
+    const r = extract('src/modules/Mod.bas', src);
+    const edges = r.edges.filter(
+      (e) => e.kind === 'references' && e.metadata?.synthesizedBy === 'vba-name-resolution',
+    );
+    expect(edges).toHaveLength(0);
+  });
+
+  it('Dim x As Variant (primitive) does NOT emit a reference edge', () => {
+    const src = `Public Data As Variant`;
+    const r = extract('src/modules/Mod.bas', src);
+    const edges = r.edges.filter(
+      (e) => e.kind === 'references' && e.metadata?.synthesizedBy === 'vba-name-resolution',
+    );
+    expect(edges).toHaveLength(0);
+  });
+
+  it('Dim x As SomeType with Spanish identifier emits a reference', () => {
+    const src = `Public Notif As INotificación`;
+    const r = extract('src/modules/Mod.bas', src);
+    const edge = r.edges.find(
+      (e) => e.kind === 'references' && e.metadata?.synthesizedBy === 'vba-name-resolution',
+    );
+    expect(edge).toBeDefined();
+    const target = r.nodes.find((n) => n.id === edge?.target);
+    expect(target?.name).toBe('INotificación');
+  });
+});
+
+/**
+ * S4 invariant — `Implements IFoo` MUST use the `parser` provenance,
+ * NOT `heuristic`. Audit S4 (June 2026): the previous implementation
+ * tagged the static, source-declared edge as `heuristic` — but
+ * `heuristic` is reserved for guessed/inferred edges, which Implements
+ * is not. The fix adds a new `parser` provenance value (generalizes
+ * `tree-sitter` for non-tree-sitter extractors) and uses it here.
+ */
+describe('VbaExtractor — Implements edge uses parser provenance (S4 invariant)', () => {
+  it('Implements edge has provenance === "parser", not "heuristic"', () => {
+    const src = `VERSION 1.0 CLASS
+BEGIN
+END
+Attribute VB_Name = "MiClase"
+Implements IAuditable`;
+    const r = extract('src/classes/MiClase.cls', src);
+    const implEdge = r.edges.find((e) => e.kind === 'implements');
+    expect(implEdge).toBeDefined();
+    expect(implEdge?.provenance).toBe('parser');
+    expect(implEdge?.provenance).not.toBe('heuristic');
+  });
+});
+
+/**
+ * S5 invariant — single-line colon-separated procedure declarations
+ * (e.g. `Public Sub X(): End Sub`) MUST end the procedure for the
+ * purpose of proc-stack tracking. Audit S5 (June 2026): the previous
+ * procedureEndRe was anchored at line start, so the proc stack never
+ * popped for these declarations and subsequent lines were treated as
+ * still inside the procedure.
+ */
+describe('VbaExtractor — colon-separated single-line procedures (S5 invariant)', () => {
+  it('a single-line Public Sub X(): End Sub is recognized as ending at the colon', () => {
+    const src = `Public Sub One(): End Sub
+Public Sub Two()
+    Debug.Print "inside two"
+End Sub`;
+    const r = extract('src/modules/Mod.bas', src);
+    // Both procedures emit function nodes.
+    const procs = r.nodes.filter(
+      (n) => n.kind === 'function' && (n.name === 'One' || n.name === 'Two'),
+    );
+    expect(procs).toHaveLength(2);
+    // The Debug.Print inside `Two` should emit NO calls edge to a
+    // (nonexistent) "One" function — which would happen if the proc
+    // stack incorrectly kept `One` pushed because the End Sub was
+    // never recognized.
+    const calls = r.edges.filter((e) => e.kind === 'calls');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a single-line Function F(): End Function is recognized', () => {
+    const src = `Public Function Add(): End Function`;
+    const r = extract('src/modules/Mod.bas', src);
+    const fn = r.nodes.find((n) => n.kind === 'function' && n.name === 'Add');
+    expect(fn).toBeDefined();
+  });
+});

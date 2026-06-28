@@ -394,8 +394,12 @@ export class VbaExtractor {
         source: '', // placeholder; rewritten after module node exists
         target: targetId,
         kind: 'implements',
-        provenance: 'heuristic',
-        metadata: { synthesizedBy: 'vba-name-resolution' },
+        // S4 fix: `Implements IFoo` is a static, source-declared fact —
+        // not a guess. Use the `parser` provenance (generalizes
+        // `tree-sitter` for non-tree-sitter extractors like our regex
+        // sweepers) instead of `heuristic`, which is reserved for
+        // guessed/inferred edges.
+        provenance: 'parser',
         line: lineNum,
         column: 0,
       };
@@ -409,6 +413,31 @@ export class VbaExtractor {
   /** Qualified Dim `Dim x As Foo.Bar` — emits `references` to `Foo`. */
   private static readonly DIM_QUAL_RE =
     /^\s*(?:Dim|Private|Public)\s+\p{L}[\p{L}\p{N}_]*\s+As\s+(\p{L}[\p{L}\p{N}_]*)\.(\p{L}[\p{L}\p{N}_]*)/iu;
+
+  /**
+   * Unqualified Dim `Dim x As SomeType` — the dominant VBA dependency
+   * form. Captures the type name (group 1) for emission as a
+   * `references` edge to a synthetic `class` node. Audit S3 (June
+   * 2026): the previous implementation required a `.` in the type
+   * (DIM_QUAL_RE), so `Dim AC As ACAuditoria` emitted no edge and
+   * class→class flows were invisible.
+   *
+   * Primitive VBA types are skipped via `PRIMITIVE_TYPES` so we don't
+   * pollute the graph with `Dim x As Long` references.
+   */
+  private static readonly DIM_UNQUAL_RE =
+    /^\s*(?:Dim|Private|Public)\s+\p{L}[\p{L}\p{N}_]*\s+As\s+(\p{L}[\p{L}\p{N}_]*)/iu;
+
+  /**
+   * VBA primitive type names — skipped when emitted as Dim targets so
+   * we don't pollute the graph with `As Long` / `As String` references.
+   * Case-insensitive (`As long` is the same as `As Long`).
+   */
+  private static readonly PRIMITIVE_TYPES = new Set([
+    'Long', 'Integer', 'Short', 'Byte', 'Single', 'Double', 'Currency',
+    'String', 'Boolean', 'Date', 'Variant', 'Object', 'Error',
+    'Empty', 'Null', 'LongPtr', 'LongLong',
+  ]);
 
   /** `WithEvents m_X As Form_Foo` — Dim/Private/Public prefix is optional. */
   private static readonly WITHEVENTS_RE =
@@ -426,6 +455,18 @@ export class VbaExtractor {
         const outerType = dimMatch[1] ?? '';
         if (outerType) {
           this.emitReference(outerType, lineNum, 0, 'vba-name-resolution');
+          count++;
+        }
+      }
+
+      // S3: also process unqualified `Dim x As Foo` (no dot in the
+      // type). Skip primitive types via PRIMITIVE_TYPES so we don't
+      // emit edges for `As Long` / `As String` etc.
+      const unqualMatch = VbaExtractor.DIM_UNQUAL_RE.exec(line);
+      if (unqualMatch) {
+        const typeName = unqualMatch[1] ?? '';
+        if (typeName && !VbaExtractor.PRIMITIVE_TYPES.has(typeName)) {
+          this.emitReference(typeName, lineNum, 0, 'vba-name-resolution');
           count++;
         }
       }
@@ -548,7 +589,12 @@ export class VbaExtractor {
   private sweepCallsAndSql(src: string): void {
     const lines = src.split('\n');
     const procedureStartLines = new Set<number>();
-    const procedureEndRe = /^\s*End\s+(?:Sub|Function|Property)\b/i;
+    // S5 fix: also match `End Sub`/`End Function`/`End Property` after a
+    // colon (`:`), so single-line `Public Sub X(): End Sub` is recognized
+    // as ending the procedure. The previous `/^\s*End...` only matched at
+    // line start, so the proc stack never popped for colon-separated
+    // single-line declarations.
+    const procedureEndRe = /(?:^|:\s*)End\s+(?:Sub|Function|Property)\b/i;
     const sqlTargetsThisFile = new Set<string>();
 
     // Walk the source once, emitting call edges and SQL edges per line and

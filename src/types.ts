@@ -211,7 +211,7 @@ export interface Edge {
   column?: number;
 
   /** How this edge was created */
-  provenance?: 'tree-sitter' | 'scip' | 'heuristic';
+  provenance?: 'tree-sitter' | 'scip' | 'parser' | 'heuristic';
 }
 
 /**
