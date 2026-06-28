@@ -504,3 +504,74 @@ End Function`;
     expect(mod?.name).toBe('modHelpers');
   });
 });
+
+/**
+ * W4 invariant — calls on Access runtime objects (Me, DoCmd, Forms,
+ * Application, etc.) MUST NOT synthesize a `function` node for the
+ * receiver. Audit W4 (June 2026): one real-world .cls produced ~20 junk
+ * `function` nodes (`rcdDatos.Fields`, `getdb().OpenRecordset`, …)
+ * polluting search/explore output. The fix is a runtime-receiver
+ * blacklist applied BEFORE synthesis.
+ *
+ * Note: `DoCmd.RunSQL` (and friends) still get SQL edge tracking via
+ * `SQL_WRAPPERS` (REQ-CODE-8) — that path is independent of this one.
+ */
+describe('VbaExtractor — runtime receivers do not synthesize nodes (W4 invariant)', () => {
+  it('Me.Refresh() does not emit a synthetic function node', () => {
+    const src = `Public Sub X()
+    Me.Refresh
+End Sub`;
+    const r = extract('src/forms/Form_X.cls', src);
+    const synthFns = r.nodes.filter(
+      (n) => n.kind === 'function' && (n.name === 'Me.Refresh' || n.name.includes('Me.')),
+    );
+    expect(synthFns).toHaveLength(0);
+  });
+
+  it('DoCmd.OpenForm does not emit a synthetic function node', () => {
+    const src = `Public Sub X()
+    DoCmd.OpenForm "MyForm"
+End Sub`;
+    const r = extract('src/modules/X.bas', src);
+    const synthFns = r.nodes.filter(
+      (n) => n.kind === 'function' && n.name.includes('DoCmd.'),
+    );
+    expect(synthFns).toHaveLength(0);
+  });
+
+  it('Forms!MyForm.Open does not emit a synthetic function node', () => {
+    const src = `Public Sub X()
+    Forms!MyForm.Visible = True
+End Sub`;
+    const r = extract('src/modules/X.bas', src);
+    const synthFns = r.nodes.filter(
+      (n) => n.kind === 'function' && n.name.includes('Forms.'),
+    );
+    expect(synthFns).toHaveLength(0);
+  });
+
+  it('DoCmd.RunSQL still emits a vba-sql-table edge (regression — W4 must not break REQ-CODE-8)', () => {
+    const src = `Public Sub X()
+    DoCmd.RunSQL "DELETE FROM tblOld"
+End Sub`;
+    const r = extract('src/modules/X.bas', src);
+    const sqlEdges = r.edges.filter((e) => e.metadata?.synthesizedBy === 'vba-sql-table');
+    expect(sqlEdges.length).toBeGreaterThan(0);
+    // But NO synthetic DoCmd.RunSQL function node should be emitted.
+    const synthFns = r.nodes.filter(
+      (n) => n.kind === 'function' && n.name === 'DoCmd.RunSQL',
+    );
+    expect(synthFns).toHaveLength(0);
+  });
+
+  it('Application.StatusBar still does not emit a synthetic function node', () => {
+    const src = `Public Sub X()
+    Application.StatusBar = "Working..."
+End Sub`;
+    const r = extract('src/modules/X.bas', src);
+    const synthFns = r.nodes.filter(
+      (n) => n.kind === 'function' && n.name.includes('Application.'),
+    );
+    expect(synthFns).toHaveLength(0);
+  });
+});

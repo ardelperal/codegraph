@@ -487,6 +487,39 @@ export class VbaExtractor {
     'Nothing',
   ]);
 
+  /**
+   * Access runtime objects and singletons. Calls on these receivers are
+   * real VBA calls but the targets are NOT user-defined modules or
+   * classes — they're Access/DAO/ADO runtime types. Synthesizing a
+   * `function` node for each would pollute the graph with ~20+ junk
+   * nodes per real-world file (audit W4, June 2026). Skip synthesis
+   * for any receiver or member in this set.
+   *
+   * Note: `DoCmd.RunSQL`, `DoCmd.OpenForm`, etc. still get SQL/edge
+   * tracking via the dedicated `SQL_WRAPPERS` regex path (REQ-CODE-8),
+   * which fires BEFORE this scan and uses its own dispatch — so
+   * blacklisting DoCmd here doesn't lose the SQL-flow edges.
+   */
+  private static readonly RUNTIME_RECEIVER_BLACKLIST = new Set([
+    // Form / page references
+    'Screen',
+    // Access application singletons
+    'Application',
+    'DoCmd',
+    'SysCmd',
+    // Access object collections
+    'Forms',
+    'Reports',
+    'Modules',
+    'References',
+    'CommandBars',
+    // Error-handling intrinsic
+    'Err',
+    // Late-binding factories (return IDispatch — not user code)
+    'CreateObject',
+    'GetObject',
+  ]);
+
   private sweepCallsAndSql(src: string): void {
     const lines = src.split('\n');
     const procStack: ProcInfo[] = [];
@@ -549,6 +582,11 @@ export class VbaExtractor {
       // Skip VBA control-flow keywords.
       if (VbaExtractor.CALL_KEYWORD_BLACKLIST.has(receiver)) continue;
       if (member && VbaExtractor.CALL_KEYWORD_BLACKLIST.has(member)) continue;
+      // Skip Access runtime objects — `Me`, `DoCmd`, `Application`, etc.
+      // These calls are real but the targets are NOT user code; emitting
+      // synthetic function nodes for them pollutes the graph (audit W4).
+      if (VbaExtractor.RUNTIME_RECEIVER_BLACKLIST.has(receiver)) continue;
+      if (member && VbaExtractor.RUNTIME_RECEIVER_BLACKLIST.has(member)) continue;
       // Skip the receiver when it equals the containing procedure (self-call).
       if (receiver === from.name && !member) continue;
 
