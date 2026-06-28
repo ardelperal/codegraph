@@ -323,6 +323,16 @@ export interface UnresolvedReference {
 
   /** Possible qualified names it might resolve to */
   candidates?: string[];
+
+  /**
+   * Optional metadata bag for language-/extractor-specific annotations on
+   * unresolved references. Used by VBA to carry
+   * `synthesizedBy: 'vba-form-binding'` on the form → sibling-`.cls`
+   * reference so downstream resolvers can render the provenance inline.
+   * Mirrors `Edge.metadata` and `Node.metadata` shapes
+   * (`Record<string, unknown>`).
+   */
+  metadata?: Record<string, unknown>;
 }
 
 // =============================================================================
