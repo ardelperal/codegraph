@@ -41,6 +41,40 @@ Follow [@getcodegraph](https://x.com/getcodegraph) on X for updates.
 
 </div>
 
+---
+
+## This is a fork — VBA / Access + Dysflow
+
+This repository is a fork of [`colbymchenry/codegraph`](https://github.com/colbymchenry/codegraph), maintained at [`ardelperal/codegraph`](https://github.com/ardelperal/codegraph). It is **identical to the upstream for every language except VBA / Access** — the fork adds nothing new to TypeScript, Python, Go, Rust, Java, etc., and is kept rebased against `colbymchenry/codegraph:main` so it stays current with upstream fixes and benchmarks.
+
+**Why fork?** To add VBA / Access language support that does not exist upstream, so agents can navigate Microsoft Access projects managed by Dysflow the same way they navigate TypeScript or Python today. See the [VBA / Access + Dysflow integration](#vba--access--dysflow-integration) section below for the feature spec, the pattern table, and the hard invariants.
+
+**The fork is not published to npm.** Only the upstream package `@colbymchenry/codegraph` is on npm — and that one does **not** have VBA / Access support. To install the fork:
+
+```bash
+# Option A — install directly from GitHub (easiest; gets you the CLI on PATH):
+npm install -g github:ardelperal/codegraph
+# or with pnpm:
+pnpm add -g github:ardelperal/codegraph
+```
+
+```bash
+# Option B — clone, build, and use the local binary (full control, useful for contributing):
+git clone https://github.com/ardelperal/codegraph.git
+cd codegraph
+pnpm install              # pnpm is the source of truth — see pnpm-lock.yaml
+pnpm run build            # produces dist/bin/codegraph.js
+# The binary is now at dist/bin/codegraph.js — point your agent's MCP at this path
+```
+
+**If you do not need VBA / Access support**, install the official package instead — the upstream is otherwise identical and gets released more frequently:
+
+```bash
+npm i -g @colbymchenry/codegraph
+```
+
+---
+
 ## Get Started
 
 ### 1. Install the CLI
