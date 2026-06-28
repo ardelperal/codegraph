@@ -149,15 +149,73 @@ export function stripVbaComments(src: string): string {
     // strip a mid-line ` Rem ` (legacy Rem syntax allowed anywhere with
     // surrounding whitespace) — the character-by-character walk above only
     // handles `'`; VBA's `Rem` is keyword-driven and may appear mid-line.
+    //
+    // **String-aware**: the previous implementation ran `REM_MIDLINE`
+    // against the whole stripped line and would silently truncate string
+    // literals containing " Rem " (e.g. `"SELECT Rem FROM tbl"` became
+    // `"SELECT`). Audit W1 (June 2026). The fix splits into alternating
+    // code / string segments and only applies the regex to code segments.
     let stripped = codeOnly.replace(/\s+$/, '');
-    const remMid = REM_MIDLINE.exec(stripped);
-    if (remMid) {
-      stripped = stripped.slice(0, remMid.index).replace(/\s+$/, '');
-    }
+    stripped = stripRemInCodeSegments(stripped);
     out.push(stripped);
   }
 
   return out.join('\n');
+}
+
+/**
+ * Split `line` into alternating code / string-literal segments and apply
+ * `REM_MIDLINE` only to code segments. String segments are returned
+ * verbatim — a string like `"SELECT Rem FROM tbl"` is NOT truncated.
+ */
+function stripRemInCodeSegments(line: string): string {
+  const segments: Array<{ text: string; isString: boolean }> = [];
+  let buf = '';
+  let inString = false;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    const next = line[i + 1];
+    if (inString) {
+      buf += ch;
+      if (ch === '"' && next === '"') {
+        buf += next;
+        i += 2;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        segments.push({ text: buf, isString: true });
+        buf = '';
+        i++;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      if (buf) {
+        segments.push({ text: buf, isString: false });
+        buf = '';
+      }
+      inString = true;
+      buf += ch;
+      i++;
+      continue;
+    }
+    buf += ch;
+    i++;
+  }
+  if (buf) segments.push({ text: buf, isString: inString });
+  for (const s of segments) {
+    if (!s.isString) {
+      const m = REM_MIDLINE.exec(s.text);
+      if (m) {
+        s.text = s.text.slice(0, m.index).replace(/\s+$/, '');
+      }
+    }
+  }
+  return segments.map((s) => s.text).join('');
 }
 
 // -----------------------------------------------------------------------------

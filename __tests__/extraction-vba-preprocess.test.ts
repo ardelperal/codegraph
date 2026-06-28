@@ -214,6 +214,28 @@ describe('stripVbaComments', () => {
     expect(stripVbaComments(src)).toBe(src);
   });
 
+  it('preserves a SQL string containing the word Rem outside any Rem comment (W1 invariant)', () => {
+    // Audit W1 (June 2026): the previous regex-based REM_MIDLINE stripper
+    // was applied to the whole stripped line and would truncate string
+    // literals containing " Rem " — breaking SQL table extraction for
+    // tables/columns whose names happen to include that substring.
+    const src = 'q = "select Rem from Remitentes"';
+    expect(stripVbaComments(src)).toBe(src);
+  });
+
+  it('still strips a real mid-line Rem comment while leaving surrounding strings intact (W1)', () => {
+    // Code + Rem comment + another code segment, with a string in between.
+    const src = 'x = 1 Rem trailing comment  " Rem "  y = 2';
+    const out = stripVbaComments(src);
+    // The Rem comment is stripped.
+    expect(out).not.toContain('Rem trailing');
+    // The " Rem " inside the string is preserved.
+    expect(out).toContain('" Rem "');
+    // Both code segments remain.
+    expect(out).toContain('x = 1');
+    expect(out).toContain('y = 2');
+  });
+
   it('strips a `\'` on its own line', () => {
     const src = "' just a comment\nSub X(): End Sub";
     expect(stripVbaComments(src)).toBe('\nSub X(): End Sub');
