@@ -26,16 +26,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build (tsc + copy assets)
-        run: npm run build
+        run: pnpm run build
 
       - name: Run vitest
-        run: npm test
+        run: pnpm test
 
       - name: Run E2E regression (extract-vba-e2e)
-        run: npx vitest run __tests__/extraction-vba-e2e.test.ts
+        run: pnpm exec vitest run __tests__/extraction-vba-e2e.test.ts
