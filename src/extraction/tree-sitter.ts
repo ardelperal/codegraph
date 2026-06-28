@@ -15,7 +15,7 @@ import {
   ExtractionError,
   UnresolvedReference,
 } from '../types';
-import { getParser, detectLanguage, isLanguageSupported, isFileLevelOnlyLanguage } from './grammars';
+import { getParser, detectLanguage, isLanguageSupported, isFileLevelOnlyLanguage, detectVbaFormFile } from './grammars';
 import { generateNodeId, getNodeText, getChildByField, getPrecedingDocstring } from './tree-sitter-helpers';
 import { FN_REF_SPECS, captureFnRefCandidates, type FnRefSpec, type FnRefCandidate } from './function-ref';
 import { isGeneratedFile } from './generated-detection';
@@ -5688,10 +5688,13 @@ export function extractFromSource(
     // Use custom extractor for DFM/FMX form files
     const extractor = new DfmExtractor(filePath, source);
     result = extractor.extract();
-  } else if (detectedLanguage === 'vba' && (fileExtension === '.form.txt' || fileExtension === '.report.txt')) {
-    // VBA form/report UI — Dysflow SaveAsText format. Zero code nodes;
-    // `property` nodes per control + one `references` edge to sibling `.cls`.
-    // See `vba-form-ui-extraction` spec (REQ-FORM-1..4).
+  } else if (detectedLanguage === 'vba' && detectVbaFormFile(filePath)) {
+    // VBA form/report UI — Dysflow SaveAsText format. Two-segment
+    // extensions (`.form.txt`/`.report.txt`) collapse to `.txt` under
+    // `path.extname()`, so the dispatch uses `detectVbaFormFile()` rather
+    // than checking `fileExtension`. Zero code nodes; `property` nodes
+    // per control + one `references` edge to sibling `.cls`. See
+    // `vba-form-ui-extraction` spec (REQ-FORM-1..4).
     const extractor = new VbaFormExtractor(filePath, source);
     result = extractor.extract();
   } else if (detectedLanguage === 'vba') {
