@@ -43,8 +43,9 @@ jobs:
           # on manual dispatch so the blast radius is small.
           token: ${{ secrets.RELEASE_PAT }}
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+        # version is read from package.json's `packageManager` field — don't
+        # pin it here, or pnpm/action-setup refuses with "Multiple versions
+        # of pnpm specified".
 
       - uses: actions/setup-node@v6
         with:

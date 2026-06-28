@@ -24,8 +24,9 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
+        # version is read from package.json's `packageManager` field — don't
+        # pin it here, or pnpm/action-setup refuses with "Multiple versions
+        # of pnpm specified".
 
       - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v4
