@@ -42,14 +42,15 @@ jobs:
           # scopes. Rotate per your token policy; the workflow only runs
           # on manual dispatch so the blast radius is small.
           token: ${{ secrets.RELEASE_PAT }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+          cache: pnpm
 
       - name: Sync pnpm-lock.yaml if version drifted
         # When the maintainer bumps the version on package.json only — for
