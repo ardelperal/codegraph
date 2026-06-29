@@ -2,7 +2,7 @@
 
 # CodeGraph (VBA & Access Fork)
 
-## 🎉 1.0 Released!
+## 🎉 1.2 Released — Access forms are first-class
 
 Already installed? Run `codegraph-vba upgrade` to update in place.
 
