@@ -34,12 +34,14 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { VbaExtractor } from '../src/extraction/vba-extractor';
+import { VbaFormExtractor } from '../src/extraction/vba-form-extractor';
 
 // =============================================================================
 // Fixture paths — all RED tests resolve these from the repo root.
 // =============================================================================
 const FIXTURE_DIR = path.join(__dirname, 'fixtures', 'vba-control-modeling');
 const TEST_FORM_CLS = path.join(FIXTURE_DIR, 'Form_TestForm.cls');
+const TEST_FORM_TXT = path.join(FIXTURE_DIR, 'Form_TestForm.form.txt');
 
 function readFixture(relPath: string): string {
   return fs.readFileSync(relPath, 'utf8');
@@ -62,5 +64,41 @@ describe('hueco-1: Me.X reference resolution', () => {
     // resolver to pick up later.
     const unresolvedNames = r.unresolvedReferences.map((u) => u.referenceName);
     expect(unresolvedNames).toContain('lblTitulo');
+  });
+});
+
+// =============================================================================
+// HUECO 2 — .form.txt emits control NAME, not just TYPE
+// =============================================================================
+describe('hueco-2: .form.txt exposes control NAME (not just TYPE)', () => {
+  it('cada control declarado en .form.txt debe aparecer como nodo por su nombre', () => {
+    // Today the .form.txt extractor emits one `property` node per
+    // `Begin <Type>` line whose `name` is the TYPE ('CommandButton',
+    // 'Label', etc.). The control's `Name = "..."` attribute is discarded.
+    // Phase B must emit one node per control whose `name` is the control
+    // name (e.g. 'ComandoAltaPM').
+    const r = new VbaFormExtractor(
+      TEST_FORM_TXT,
+      readFixture(TEST_FORM_TXT),
+    ).extract();
+
+    const expectedControlNames = [
+      'ComandoAltaPM',
+      'ComandoBajaPM',
+      'lblTitulo',
+      'lblDescripcion',
+      'txtDescripcion',
+      'txtCodigo',
+      'grpEstado',
+      'recMarco',
+      'lstRiesgos',
+    ];
+    const missing = expectedControlNames.filter(
+      (name) => !r.nodes.some((n) => n.name === name),
+    );
+    expect(
+      missing,
+      `expected .form.txt to emit one node per control name; missing: ${missing.join(', ')}`,
+    ).toEqual([]);
   });
 });
