@@ -676,6 +676,29 @@ export class VbaExtractor {
     { name: 'getdb().OpenRecordset', re: /\bgetdb\(\)\.OpenRecordset\s+"((?:[^"]|"")*)"/g },
   ];
 
+  /**
+   * `DoCmd.OpenForm "<FormName>"` modelling regex — B4 (hueco 6).
+   *
+   * Real VBA idiom (matches both forms):
+   *   `DoCmd.OpenForm "MyForm"`
+   *   `DoCmd.OpenForm "MyForm", acNormal, , , acFormEdit`
+   *
+   * Captures the form NAME (group 1) so the extractor can synthesize an
+   * `opens-form` heuristic edge from the calling Sub to a stub for the
+   * target form. The trailing positional args (`acNormal`, `acFormEdit`,
+   * etc.) are intentionally NOT captured — the orchestrator's scope decision
+   * was to cover ONLY `OpenForm` for this commit; `OpenReport`, `OpenQuery`,
+   * `OpenTable`, … are flagged in the commit body as follow-up work.
+   *
+   * Why a separate dispatch: `DoCmd` is in `RUNTIME_RECEIVER_BLACKLIST`
+   * (R4 invariant), so `DoCmd.OpenForm` is intentionally SKIPPED by the
+   * generic `CALL_RE` path that would otherwise emit a junk `calls` edge
+   * to a synthetic `function` node for `DoCmd.OpenForm`. This regex
+   * matches BEFORE the call-site scan and uses its own dispatch to emit
+   * the `opens-form` edge instead — sharing no logic with CALL_RE.
+   */
+  private static readonly OPEN_FORM_RE = /\bDoCmd\.OpenForm\s+"([^"]+)"/g;
+
   /** SQL assigned to a local variable, e.g. `m_SQL = "SELECT ..." & ...`. */
   private static readonly SQL_VAR_ASSIGN_RE =
     /^\s*(\p{L}[\p{L}\p{N}_]*)\s*=\s*(.*)$/iu;
@@ -949,6 +972,29 @@ export class VbaExtractor {
             this.emitQualifiedStatementCallEdge(caller, qualStmt.receiver, qualStmt.member, lineNum);
           }
         }
+
+        // B4 (hueco 6): `DoCmd.OpenForm "FormName"` modelling.
+        //
+        // The literal form name lives INSIDE a string literal, so we
+        // scan the ORIGINAL (unmasked) line — `callScanLine` has its
+        // string content replaced with spaces. The receiver is the same
+        // proc-stack frame so we attribute the edge to the calling Sub,
+        // not the file-level module.
+        //
+        // Cross-file edge filter note: the synthesized stub node is
+        // emitted locally (same file's extraction result), so the
+        // per-file filter at `index.ts:insertedIds.has(source/target)`
+        // passes the edge naturally — no exemption to the filter is
+        // required. The real form-layout node, when VbaFormExtractor
+        // later processes the matching .form.txt file, gets a DIFFERENT
+        // node id (it uses the real .form.txt path); the stub and the
+        // real node coexist harmlessly — the edge from THIS file still
+        // references the stub. Future work can collapse the stub once
+        // the indexer learns to re-resolve cross-file edges to the real
+        // node id (the same pattern the cross-file incoming-edges
+        // snapshot already uses at `index.ts:getCrossFileIncomingEdges`).
+        const caller2 = stack[stack.length - 1]!;
+        this.scanOpenFormCalls(line, caller2, lineNum);
       }
     }
 
@@ -1046,6 +1092,13 @@ export class VbaExtractor {
   private procNodeIdCache = new Map<string, string>();
   private callDedupe = new Set<string>();
   private synthFunctionNodeIds = new Set<string>();
+  /**
+   * B4 (hueco 6): cache of stub `form-layout` node ids we've already emitted
+   * for a given target form name in this file. Avoids emitting duplicate
+   * stubs when `DoCmd.OpenForm "FormTest"` shows up N times across N calls.
+   * Keyed by the lowercased form name so `FormTest` / `formtest` collapse.
+   */
+  private opensFormStubIdsByName = new Map<string, string>();
 
   /**
    * Hueco 1: scan a line for `Me.<ControlName>` patterns and emit one
@@ -1289,6 +1342,124 @@ export class VbaExtractor {
       metadata: { synthesizedBy: 'vba-name-resolution' },
       line: lineNum,
       column: 0,
+    });
+  }
+
+  /**
+   * B4 (hueco 6): scan one line of VBA source for `DoCmd.OpenForm "X"`
+   * calls. For each match, emit:
+   *  - a stub `form-layout` node for the target form (cached by name so
+   *    the same form referenced from N sites emits exactly ONE stub),
+   *  - an `opens-form` heuristic edge from the calling Sub to that stub.
+   *
+   * Both endpoints are pushed into `this.nodes` / `this.edges`, so the
+   * per-file edge filter at `index.ts:insertedIds.has(source) &&
+   * insertedIds.has(target)` passes the edge naturally without any
+   * exemption to the filter.
+   *
+   * Why a stub and not a direct lookup: the target form lives in a
+   * DIFFERENT file (its own `.form.txt`), and the extractor doesn't have
+   * DB access at parse time. The stub's synthetic file path
+   * (`synthetic:opensFormStub/<FormName>.form.txt`) guarantees a
+   * deterministic node id so re-indexes collapse to the same stub.
+   * When the consumer's `.form.txt` is later indexed, the real
+   * `form-layout` node carries a different id (it uses the real file
+   * path); the stub and the real coexist harmlessly. The orchestrator
+   * flagged this as acceptable for B4 — only `OpenForm` is in scope.
+   * `OpenReport`, `OpenQuery`, `OpenTable`, … are follow-up work.
+   *
+   * Scope note: this regex matches ONLY the literal-string form
+   * `DoCmd.OpenForm "X"`. Variable-form calls like
+   * `DoCmd.OpenForm m_FormName` are intentionally NOT captured here
+   * because resolving the variable to a concrete form name would
+   * require data-flow analysis that is out of scope.
+   */
+  private scanOpenFormCalls(
+    line: string,
+    caller: ProcInfo,
+    lineNum: number,
+  ): void {
+    // Each regex has /g so we MUST reset `lastIndex` before use; cloning
+    // the regex is the simplest way to avoid leaking state across lines.
+    const localRe = new RegExp(
+      VbaExtractor.OPEN_FORM_RE.source,
+      VbaExtractor.OPEN_FORM_RE.flags,
+    );
+    let m: RegExpExecArray | null;
+    while ((m = localRe.exec(line)) !== null) {
+      const targetFormName = (m[1] ?? '').trim();
+      if (!targetFormName) continue;
+      this.emitOpensFormEdge(caller, targetFormName, lineNum, m.index);
+    }
+  }
+
+  /**
+   * B4 (hueco 6): emit a stub `form-layout` node for `targetFormName`
+   * (cached so duplicates collapse) and an `opens-form` heuristic edge
+   * from `caller` to that stub.
+   *
+   * The edge carries:
+   *  - `kind: 'opens-form'`                — new cross-file edge kind
+   *  - `provenance: 'heuristic'`           — synthesized, not parsed
+   *  - `metadata.targetFormName`           — the captured literal
+   *  - `metadata.synthesizedBy: 'vba-opens-form'` — distinguishes this
+   *    synthesis from the dim/sql/event-handler families
+   *
+   * The stub's `metadata.stub: true` flag lets downstream UI render
+   * unresolved references distinctly (e.g. with a dashed border) and
+   * gives later re-resolution pass a hook for collapse. The stub is
+   * line-independent (`line = 0`) so re-indexes produce identical ids.
+   */
+  private emitOpensFormEdge(
+    caller: ProcInfo,
+    targetFormName: string,
+    lineNum: number,
+    column: number,
+  ): void {
+    const key = targetFormName.toLowerCase();
+    let stubId = this.opensFormStubIdsByName.get(key);
+    if (!stubId) {
+      // Synthetic file path keeps the stub's id deterministic AND
+      // disambiguates it from any real `.form.txt` indexed later.
+      // The directory prefix (`synthetic:opensFormStub/`) is intentionally
+      // not a real filesystem path — it just namespaces the id space.
+      const syntheticFilePath = `synthetic:opensFormStub/${targetFormName}.form.txt`;
+      stubId = generateNodeId(
+        syntheticFilePath,
+        'form-layout',
+        targetFormName,
+        0,
+      );
+      this.opensFormStubIdsByName.set(key, stubId);
+      this.nodes.push({
+        id: stubId,
+        kind: 'form-layout',
+        name: targetFormName,
+        // Convention: form module names in Access are `Form_<Name>`.
+        // We follow the same convention in the synthetic stub's
+        // qualifiedName so cross-file lookups can find it consistently.
+        qualifiedName: `Form_${targetFormName}`,
+        filePath: syntheticFilePath,
+        language: 'vba',
+        startLine: lineNum,
+        endLine: lineNum,
+        startColumn: 0,
+        endColumn: 0,
+        metadata: { stub: true },
+        updatedAt: Date.now(),
+      });
+    }
+    this.edges.push({
+      source: this.findOrCreateFunctionNodeId(caller),
+      target: stubId,
+      kind: 'opens-form',
+      provenance: 'heuristic',
+      metadata: {
+        synthesizedBy: 'vba-opens-form',
+        targetFormName,
+      },
+      line: lineNum,
+      column,
     });
   }
 
