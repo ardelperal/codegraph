@@ -8,19 +8,22 @@
  *    not here. Dysflow overwrites `.form.txt`'s embedded `CodeBehindForm`
  *    block on the next import, so any code emitted from this file would be
  *    wrong AND ephemeral.
- *  - It emits one `module` node per file (named per `Attribute VB_Name`
- *    when present, otherwise the file basename).
+ *  - It emits one `form-layout` node per file (named per `Attribute VB_Name`
+ *    when present, otherwise the file basename). The `form-layout` kind
+ *    (B2 hueco 4) replaces what was historically emitted as `kind: 'module'`
+ *    so consumers can dispatch on a UI-specific kind and avoid confusing
+ *    form/report UI files with `.bas` modules. `module` remains the kind
+ *    for `.bas` standard modules emitted by `VbaExtractor`.
  *  - It emits one `property` node per Access control declaration with
  *    `metadata.controlType` set to the control type (e.g. `'TextBox'`,
  *    `'CommandButton'`).
- *  - It emits one `references` edge from the form module to a node whose
- *    name matches the sibling `.cls` basename, so `codegraph_explore` can
- *    resolve form → class at lookup time. Tagged
- *    `metadata.synthesizedBy: 'vba-form-binding'`.
+ *  - It emits one unresolved reference (synthesizedBy=vba-form-binding) from
+ *    the form-layout node to the sibling `.cls` basename, so
+ *    `codegraph_explore` can resolve form → class at lookup time.
  *
- * Hard invariant (REQ-FORM-4): ZERO `function`/`sub`/`class` nodes from
- * `.form.txt` / `.report.txt`. The form-side behavior lives in
- * `vba-form-ui-extraction`; the code-side lives in `vba-code-extraction`.
+ * Hard invariant (REQ-FORM-4): ZERO `function`/`sub`/`class`/`module`
+ * nodes from `.form.txt` / `.report.txt`. The form-side behavior lives
+ * in `vba-form-ui-extraction`; the code-side lives in `vba-code-extraction`.
  */
 import * as path from 'path';
 import {
@@ -64,9 +67,14 @@ export class VbaFormExtractor {
       const basename = this.basenameWithoutExtension();
       const moduleName = vbName ?? basename;
 
-      // Form/report module node — NEVER a `class` node.
-      const moduleNode = this.createModuleNode(moduleName);
-      this.nodes.push(moduleNode);
+      // Form/report file-level node — `form-layout` (NOT `module`). B2
+      // hueco 4 promoted this from `module` to `form-layout` so the form
+      // UI is dispatched on its own kind and never confused with a `.bas`
+      // standard module. The `metadata.containerKind` preserves the
+      // historical `module` label so downstream tooling that still keys on
+      // it has a back-compat path; new code should test `kind === 'form-layout'`.
+      const formLayoutNode = this.createFormLayoutNode(moduleName);
+      this.nodes.push(formLayoutNode);
 
       // Sibling `.cls` binding (REQ-FORM-1, REQ-FORM-3). Emit an
       // UnresolvedReference rather than a hardcoded `references` edge with
@@ -75,7 +83,7 @@ export class VbaFormExtractor {
       // for downstream resolution to match it. The unresolved reference is
       // resolved at index time when the actual sibling `.cls` is processed.
       this.unresolvedReferences.push({
-        fromNodeId: moduleNode.id,
+        fromNodeId: formLayoutNode.id,
         referenceName: basename,
         referenceKind: 'references',
         line: 1,
@@ -160,11 +168,23 @@ export class VbaFormExtractor {
     return null;
   }
 
-  private createModuleNode(name: string): Node {
+  /**
+   * Build the per-file node for a `.form.txt` / `.report.txt` source.
+   * Emits `kind: 'form-layout'` (B2 hueco 4), replacing the historical
+   * `kind: 'module'` so consumers can dispatch on a UI-specific kind.
+   *
+   * The deterministic id formula `generateNodeId(filePath, 'form-layout',
+   * name, 1)` is preserved so cross-extractor stubs (e.g. event-handler
+   * synthesis on the `.cls` side) can produce a matching id when needed
+   * — though the immediate use case is the `module` → `form-layout`
+   * rename. `metadata.containerKind` keeps the historical `'module'`
+   * label as a back-compat marker; consumers should prefer `node.kind`.
+   */
+  private createFormLayoutNode(name: string): Node {
     const lines = this.source.split('\n');
     return {
-      id: generateNodeId(this.filePath, 'module', name, 1),
-      kind: 'module',
+      id: generateNodeId(this.filePath, 'form-layout', name, 1),
+      kind: 'form-layout',
       name,
       qualifiedName: name,
       filePath: this.filePath,
@@ -173,7 +193,7 @@ export class VbaFormExtractor {
       endLine: lines.length,
       startColumn: 0,
       endColumn: 0,
-      metadata: {},
+      metadata: { containerKind: 'module' },
       updatedAt: Date.now(),
     };
   }
