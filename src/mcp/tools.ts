@@ -4296,7 +4296,7 @@ export class ToolHandler {
       const { node } = result;
       const location = node.startLine ? `:${node.startLine}` : '';
       // Compact format: one line per result with key info
-      lines.push(`**${node.name}** (${node.kind})`);
+      lines.push(`**${node.qualifiedName || node.name}** (${node.kind})`);
       lines.push(`${node.filePath}${location}`);
       if (node.signature) lines.push(`\`${node.signature}\``);
       lines.push('');
