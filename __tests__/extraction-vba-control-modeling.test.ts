@@ -191,13 +191,12 @@ describe('hueco-4: .form.txt emits kind=form-layout, NOT kind=module', () => {
 // =============================================================================
 // HUECO 5 — `Form_Load` qualifiedName carries the form prefix
 // =============================================================================
-describe('hueco-5: Form_Load qualifiedName carries form prefix', () => {
+describe('huecos 3 & 5: VBA event-handler and Form_Load integration', () => {
   let cg: CodeGraph | null = null;
   const codeGraphDir = path.join(FIXTURE_DIR, '.codegraph-vba');
   let initialized = false;
 
   beforeAll(async () => {
-    // Clean slate — same pattern as extraction-vba-realfixtures.test.ts.
     if (fs.existsSync(codeGraphDir)) {
       fs.rmSync(codeGraphDir, { recursive: true, force: true });
     }
@@ -217,6 +216,27 @@ describe('hueco-5: Form_Load qualifiedName carries form prefix', () => {
     if (initialized && fs.existsSync(codeGraphDir)) {
       fs.rmSync(codeGraphDir, { recursive: true, force: true });
     }
+  });
+
+  it('ComandoAltaPM_Click debe tener callees con el control ComandoAltaPM (hueco-3)', async () => {
+    if (!cg) return;
+    const matches = cg.searchNodes('ComandoAltaPM_Click', { languages: ['vba'] });
+    const fnNode = matches.find((m) => m.node.name === 'ComandoAltaPM_Click')?.node;
+    expect(fnNode).toBeDefined();
+    if (!fnNode) return;
+
+    const callees = cg.getCallees(fnNode.id);
+    expect(callees).toContainEqual(
+      expect.objectContaining({
+        node: expect.objectContaining({
+          kind: 'form-instance-control',
+          name: 'ComandoAltaPM',
+        }),
+        edge: expect.objectContaining({
+          kind: 'event-handler',
+        }),
+      })
+    );
   });
 
   it('query "Form_Load" debe componer qualifiedName con prefijo de form', async () => {
@@ -239,6 +259,16 @@ describe('hueco-5: Form_Load qualifiedName carries form prefix', () => {
         `qualifiedName ${hit.node.qualifiedName} (file ${hit.node.filePath}) must include form prefix`,
       ).toMatch(/^Form_[^.]+\.Form_Load$/);
     }
+  });
+
+  it('codegraph_search de Form_Load debe incluir el prefijo de form en la salida (hueco-5)', async () => {
+    if (!cg) return;
+    const { ToolHandler } = await import('../src/mcp/tools');
+    const handler = new ToolHandler(cg);
+    const res = await handler.execute('codegraph_search', { query: 'Form_Load' });
+    const text = res.content?.[0]?.text ?? '';
+    expect(text).toContain('Form_TestForm.Form_Load');
+    expect(text).toContain('Form_OtherForm.Form_Load');
   });
 });
 
