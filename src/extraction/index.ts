@@ -1714,9 +1714,7 @@ export class ExtractionOrchestrator {
     // a naive re-insert by old id would silently drop every edge. Matching by
     // (filePath, kind, name) is stable across line shifts; if the symbol was
     // renamed/removed, no match is found and the edge stays dropped (correct).
-    const crossFileIncomingEdges = existingFile
-      ? this.queries.getCrossFileIncomingEdgesWithTarget(filePath)
-      : [];
+    const crossFileIncomingEdges = this.queries.getCrossFileIncomingEdgesWithTarget(filePath);
 
     // Delete existing data for this file
     if (existingFile) {

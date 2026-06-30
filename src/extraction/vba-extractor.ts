@@ -453,8 +453,8 @@ export class VbaExtractor {
           updatedAt: Date.now(),
         });
         this.edges.push({
-          source: controlNodeId,
-          target: nodeId,
+          source: nodeId,
+          target: controlNodeId,
           kind: 'event-handler',
           provenance: 'heuristic',
           metadata: { eventName: handler.eventName },
