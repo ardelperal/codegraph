@@ -85,6 +85,23 @@ describe('exclude loader (codegraph.json)', () => {
     fs.rmSync(path.join(dir, 'codegraph.json'));
     expect(loadExcludePatterns(dir)).toEqual([]);
   });
+
+  it('loads and merges from local .codegraph-vba/config.json', () => {
+    // Write local config.json
+    const codegraphDir = path.join(dir, '.codegraph-vba');
+    fs.mkdirSync(codegraphDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(codegraphDir, 'config.json'),
+      JSON.stringify({ exclude: ['local-exclude/'] })
+    );
+
+    // Should load local exclude
+    expect(loadExcludePatterns(dir)).toEqual(['local-exclude/']);
+
+    // Should merge with root codegraph.json
+    writeConfig({ exclude: ['root-exclude/'] });
+    expect(loadExcludePatterns(dir)).toEqual(['local-exclude/', 'root-exclude/']);
+  });
 });
 
 describe('exclude behavior — scanDirectory drops excluded paths (#999)', () => {

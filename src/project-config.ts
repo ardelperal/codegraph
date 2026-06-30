@@ -27,6 +27,7 @@ import * as path from 'path';
 import { Language } from './types';
 import { isLanguageSupported } from './extraction/grammars';
 import { logWarn } from './errors';
+import { codeGraphDirName } from './directory';
 
 /** Filename of the project-scoped config, resolved relative to the project root. */
 export const PROJECT_CONFIG_FILENAME = 'codegraph.json';
@@ -64,6 +65,7 @@ interface ParsedConfig {
 
 interface CacheEntry {
   mtimeMs: number;
+  localMtimeMs: number;
   config: ParsedConfig;
 }
 
@@ -221,21 +223,46 @@ function extractExclude(parsed: object, file: string): string[] {
  */
 function loadParsedConfig(rootDir: string): ParsedConfig {
   const file = path.join(rootDir, PROJECT_CONFIG_FILENAME);
+  const localFile = path.join(rootDir, codeGraphDirName(), 'config.json');
 
-  let mtimeMs: number;
+  let fileMtimeMs = 0;
+  let localMtimeMs = 0;
   try {
-    mtimeMs = fs.statSync(file).mtimeMs;
+    fileMtimeMs = fs.statSync(file).mtimeMs;
   } catch {
-    // No config file — drop any stale cache entry and return the default.
+    // No config file
+  }
+  try {
+    localMtimeMs = fs.statSync(localFile).mtimeMs;
+  } catch {
+    // No local config file
+  }
+
+  if (fileMtimeMs === 0 && localMtimeMs === 0) {
     cache.delete(rootDir);
     return EMPTY_CONFIG;
   }
 
   const entry = cache.get(rootDir);
-  if (entry && entry.mtimeMs === mtimeMs) return entry.config;
+  if (entry && entry.mtimeMs === fileMtimeMs && entry.localMtimeMs === localMtimeMs) {
+    return entry.config;
+  }
 
-  const config = parseConfig(file);
-  cache.set(rootDir, { mtimeMs, config });
+  const fileConfig = fileMtimeMs > 0 ? parseConfig(file) : EMPTY_CONFIG;
+  const localConfig = localMtimeMs > 0 ? parseConfig(localFile) : EMPTY_CONFIG;
+
+  // Merge the configs (root codegraph.json overrides local config.json)
+  const extensions = { ...localConfig.extensions, ...fileConfig.extensions };
+  const includeIgnored = [...new Set([...localConfig.includeIgnored, ...fileConfig.includeIgnored])];
+  const exclude = [...new Set([...localConfig.exclude, ...fileConfig.exclude])];
+
+  const config: ParsedConfig = {
+    extensions,
+    includeIgnored,
+    exclude,
+  };
+
+  cache.set(rootDir, { mtimeMs: fileMtimeMs, localMtimeMs, config });
   return config;
 }
 

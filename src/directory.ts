@@ -463,6 +463,24 @@ export function createDirectory(projectRoot: string): void {
   // Write .gitignore inside .codegraph (create if absent, upgrade a stale
   // pre-wildcard default left by an older version — issue #788).
   ensureGitignore(path.join(codegraphDir, '.gitignore'));
+
+  // Write default config.json inside .codegraph-vba/ (chore(config): default excludePatterns)
+  const configPath = path.join(codegraphDir, 'config.json');
+  if (!fs.existsSync(configPath)) {
+    const defaultConfig = {
+      exclude: [
+        "node_modules/",
+        "dist/",
+        ".git/",
+        ".codegraph/",
+        ".dysflow/",
+        "*.laccdb",
+        "*.accdb",
+        "*.accde"
+      ]
+    };
+    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2) + '\n');
+  }
 }
 
 /**
