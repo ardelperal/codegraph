@@ -51,13 +51,14 @@ This repository is a fork of [`colbymchenry/codegraph`](https://github.com/colby
 
 **Why fork?** To add VBA / Access language support that does not exist upstream, so agents can navigate Microsoft Access projects managed by Dysflow the same way they navigate TypeScript or Python today. See the [VBA / Access + Dysflow integration](#vba--access--dysflow-integration) section below for the feature spec, the pattern table, and the hard invariants.
 
-**The fork is not published to npm.** Only the upstream package `@colbymchenry/codegraph` is on npm — and that one does **not** have VBA / Access support. To install the fork:
+**The fork is published to npm as `codegraph-vba`.** The upstream package `@colbymchenry/codegraph` does **not** have VBA / Access support — install `codegraph-vba` to get it:
 
 ```bash
-# Option A — install directly from GitHub (easiest; gets you the CLI on PATH):
-npm install -g github:ardelperal/codegraph
+# Option A — install from npm (easiest; gets you the codegraph-vba CLI on PATH):
+npm i -g codegraph-vba
 # or with pnpm:
-pnpm add -g github:ardelperal/codegraph
+pnpm add -g codegraph-vba
+# or the one-line OS installer (no Node required) — see Get Started below.
 ```
 
 ```bash
@@ -69,7 +70,7 @@ pnpm run build            # produces dist/bin/codegraph.js
 # The binary is now at dist/bin/codegraph.js — point your agent's MCP at this path
 ```
 
-**If you do not need VBA / Access support**, install the official package instead — the upstream is otherwise identical and gets released more frequently:
+**If you do not need VBA / Access support**, install the upstream package instead — it is otherwise identical and gets released more frequently:
 
 ```bash
 npm i -g @colbymchenry/codegraph
@@ -85,22 +86,22 @@ npm i -g @colbymchenry/codegraph
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ardelperal/codegraph/main/install.sh | sh
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ardelperal/codegraph/main/install.ps1 | iex
 ```
 
 <details>
 <summary><b>Already have Node? Use npm instead (works on any version)</b></summary>
 
 ```bash
-npm i -g @colbymchenry/codegraph
+npm i -g codegraph-vba
 ```
 
-<sub>CodeGraph bundles its own runtime — nothing to compile, no native build, works the same everywhere. The installer puts `codegraph` on your PATH but **doesn't change your current shell** — open a new terminal before the next step so the command resolves.</sub>
+<sub>CodeGraph bundles its own runtime — nothing to compile, no native build, works the same everywhere. The installer puts `codegraph-vba` on your PATH but **doesn't change your current shell** — open a new terminal before the next step so the command resolves.</sub>
 
-<sub>**Upgrade any time** with `codegraph upgrade` — it detects how you installed (bundle, npm, or npx) and updates in place. Add `--check` to see if an update is available, or `codegraph upgrade <version>` to pin one.</sub>
+<sub>**Upgrade any time** with `codegraph-vba upgrade` — it detects how you installed (bundle, npm, or npx) and updates in place. Add `--check` to see if an update is available, or `codegraph-vba upgrade <version>` to pin one.</sub>
 
 </details>
 
@@ -109,19 +110,19 @@ npm i -g @colbymchenry/codegraph
 In a **new terminal**, run the installer to connect CodeGraph to the agents you use:
 
 ```bash
-codegraph install
+codegraph-vba install
 ```
 
-<sub>Detects and auto-configures Claude Code, Cursor, Codex CLI, opencode, Hermes Agent, Gemini CLI, Antigravity IDE, and Kiro — wiring the CodeGraph MCP server into each. **This is the step that connects CodeGraph to your agent;** installing the CLI in step 1 does not do it on its own. It only wires up your agent — it does **not** index any code; building each project's graph is the separate `codegraph init` in step 3. (Shortcut: `npx @colbymchenry/codegraph` downloads and runs this in one go.)</sub>
+<sub>Detects and auto-configures Claude Code, Cursor, Codex CLI, opencode, Hermes Agent, Gemini CLI, Antigravity IDE, and Kiro — wiring the CodeGraph MCP server into each. **This is the step that connects CodeGraph to your agent;** installing the CLI in step 1 does not do it on its own. It only wires up your agent — it does **not** index any code; building each project's graph is the separate `codegraph-vba init` in step 3. (Shortcut: `npx codegraph-vba` downloads and runs this in one go.)</sub>
 
 ### 3. Initialize each project
 
 ```bash
 cd your-project
-codegraph init
+codegraph-vba init
 ```
 
-<sub>`codegraph init` creates the local `.codegraph/` directory and builds the full graph in the same step — one command, done.</sub>
+<sub>`codegraph-vba init` creates the local `.codegraph-vba/` directory and builds the full graph in the same step — one command, done.</sub>
 
 <div align="center">
 
@@ -138,10 +139,10 @@ Auto-sync is enabled by default. CodeGraph watches the project and updates the g
 Changed your mind? One command removes CodeGraph from every agent it configured:
 
 ```bash
-codegraph uninstall
+codegraph-vba uninstall
 ```
 
-<sub>Reverses the installer — strips CodeGraph's MCP server config, instructions, and permissions from each configured agent. Your project indexes (`.codegraph/`) are left untouched; remove those per-project with `codegraph uninit`. Use `--target` to remove from specific agents, or `--yes` to run non-interactively.</sub>
+<sub>Reverses the installer — strips CodeGraph's MCP server config, instructions, and permissions from each configured agent. Your project indexes (`.codegraph-vba/`) are left untouched; remove those per-project with `codegraph-vba uninit`. Use `--target` to remove from specific agents, or `--yes` to run non-interactively.</sub>
 
 ---
 
@@ -287,9 +288,9 @@ The reliable, universal payoff is **surgical context and speed**: CodeGraph coll
 | **100% Local** | No data leaves your machine. No API keys. No external services. SQLite database only |
 
 <details>
-<summary><strong>How auto-syncing works — and why you don't need to run <code>codegraph sync</code> manually</strong></summary>
+<summary><strong>How auto-syncing works — and why you don't need to run <code>codegraph-vba sync</code> manually</strong></summary>
 
-When your agent (Claude Code, Cursor, Codex, opencode) launches `codegraph serve --mcp`, three layers keep the index in step with your code — and make sure the agent never gets a silent wrong answer in the brief window between an edit and the next sync:
+When your agent (Claude Code, Cursor, Codex, opencode) launches `codegraph-vba serve --mcp`, three layers keep the index in step with your code — and make sure the agent never gets a silent wrong answer in the brief window between an edit and the next sync:
 
 1. **File watcher with debounced auto-sync.** A native FSEvents / inotify / ReadDirectoryChangesW watcher captures every source-file create / modify / delete and triggers a re-index after a debounce window (default `2000ms`, tunable via `CODEGRAPH_WATCH_DEBOUNCE_MS`, clamped to `[100ms, 60s]`). Bursts of edits collapse into a single sync.
 
@@ -305,11 +306,11 @@ agent writes src/Widget.ts
   → next agent query sees it
 ```
 
-**Verify any time** with `codegraph status` (CLI). If anything is pending, you'll see a `### Pending sync:` section naming the files and their edit age.
+**Verify any time** with `codegraph-vba status` (CLI). If anything is pending, you'll see a `### Pending sync:` section naming the files and their edit age.
 
-The handful of cases where manual `codegraph sync` makes sense: the watcher is disabled (sandboxed environments, or `CODEGRAPH_NO_DAEMON=1`), or you're scripting against the index outside an agent session and want a pre-flight sync at the start of your script.
+The handful of cases where manual `codegraph-vba sync` makes sense: the watcher is disabled (sandboxed environments, or `CODEGRAPH_NO_DAEMON=1`), or you're scripting against the index outside an agent session and want a pre-flight sync at the start of your script.
 
-→ Full deep-dive in [Guides → Indexing a Project](https://colbymchenry.github.io/codegraph/guides/indexing/#stay-fresh-automatically).
+→ Full deep-dive in the upstream [Guides → Indexing a Project](https://colbymchenry.github.io/codegraph/guides/indexing/#stay-fresh-automatically).
 
 </details>
 
@@ -317,7 +318,7 @@ The handful of cases where manual `codegraph sync` makes sense: the watcher is d
 
 ## Framework-aware Routes
 
-CodeGraph detects web-framework routing files and emits `route` nodes linked by `references` edges to their handler classes or functions. Querying callers of a view/controller now surfaces the URL pattern that binds it.
+CodeGraph detects web-framework routing files and emits `route` nodes linked by `references` edges to their handler classes or functions. Querying callers of a view/controller now surfaces the URL pattern that binds it. For **VBA / Access** projects the same idea applies to Access's data/event wiring rather than URL routes — see the bottom row of the table.
 
 | Framework | Shapes recognized |
 |---|---|
@@ -338,6 +339,9 @@ CodeGraph detects web-framework routing files and emits `route` nodes linked by 
 | **React Router** / **SvelteKit** | Route component nodes |
 | **Vue Router** / **Nuxt** | `pages/` file-based routes, `server/api/` endpoints, route middleware |
 | **Astro** | `src/pages/` file-based routes (`.astro` pages + `.ts` endpoints, `[param]`/`[...rest]` syntax) |
+| **VBA / Access (Dysflow)** | SQL embedded in `DoCmd.RunSQL` / `CurrentDb.OpenRecordset` / `Execute` → `references` edges to the `FROM`/`INTO`/`UPDATE` table; `WithEvents` form-event listeners → handler; form module ↔ `.cls` code-behind binding (see [VBA / Access + Dysflow integration](#vba--access--dysflow-integration) for the full pattern table) |
+
+<sub>VBA / Access has no URL router, so instead of `route` nodes its "routing" is the data and event wiring that connects Access UI to behavior — SQL-string table references, `WithEvents` form handlers, and form-to-code-behind bindings. Each is a synthesized `references` edge tagged with `metadata.synthesizedBy` (`vba-sql-table`, `vba-withevents`, `vba-form-binding`).</sub>
 
 ---
 
@@ -399,25 +403,25 @@ The two are **sibling tools**: Dysflow owns the Access binary round-trip (sync, 
 ### 1. Run the Installer
 
 ```bash
-npx @colbymchenry/codegraph
+npx codegraph-vba
 ```
 
 The installer will:
 - Ask which agent(s) to configure — auto-detects installed ones from: **Claude Code**, **Cursor**, **Codex CLI**, **opencode**, **Hermes Agent**, **Gemini CLI**, **Antigravity IDE**, **Kiro**
-- Prompt to install `codegraph` on your PATH (so agents can launch the MCP server)
+- Prompt to install `codegraph-vba` on your PATH (so agents can launch the MCP server)
 - Ask whether configs apply to all your projects or just this one
-- Write each chosen agent's MCP server config, plus a small marker-fenced CodeGraph section in the agent's instructions file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) — that's how subagents and non-MCP agents learn the `codegraph explore` command, since the MCP server's own guidance only reaches the main agent. Removed cleanly by `codegraph uninstall`.
+- Write each chosen agent's MCP server config, plus a small marker-fenced CodeGraph section in the agent's instructions file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) — that's how subagents and non-MCP agents learn the `codegraph-vba explore` command, since the MCP server's own guidance only reaches the main agent. Removed cleanly by `codegraph-vba uninstall`.
 - Set up auto-allow permissions when Claude Code is one of the targets
 
-The installer **wires up your agents only — it does not index your code.** After it finishes, build each project's graph yourself with `codegraph init` (step 3). One global `codegraph install` covers every project; you run `codegraph init` once per project.
+The installer **wires up your agents only — it does not index your code.** After it finishes, build each project's graph yourself with `codegraph-vba init` (step 3). One global `codegraph-vba install` covers every project; you run `codegraph-vba init` once per project.
 
 **Non-interactive (scripting / CI):**
 
 ```bash
-codegraph install --yes                              # auto-detect agents, install global
-codegraph install --target=cursor,claude --yes       # explicit target list
-codegraph install --target=auto --location=local     # detected agents, project-local
-codegraph install --print-config codex               # print snippet, no file writes
+codegraph-vba install --yes                              # auto-detect agents, install global
+codegraph-vba install --target=cursor,claude --yes       # explicit target list
+codegraph-vba install --target=auto --location=local     # detected agents, project-local
+codegraph-vba install --print-config codex               # print snippet, no file writes
 ```
 
 | Flag | Values | Default |
@@ -436,19 +440,19 @@ Restart your agent (Claude Code / Cursor / Codex CLI / opencode / Hermes Agent /
 
 ```bash
 cd your-project
-codegraph init
+codegraph-vba init
 ```
 
-Builds the per-project knowledge graph index, which then auto-syncs on every file change. A single global `codegraph install` works in every project you open — no need to re-run the installer per project.
+Builds the per-project knowledge graph index, which then auto-syncs on every file change. A single global `codegraph-vba install` works in every project you open — no need to re-run the installer per project.
 
-That's it — your agent will use CodeGraph tools automatically when a `.codegraph/` directory exists.
+That's it — your agent will use CodeGraph tools automatically when a `.codegraph-vba/` directory exists.
 
 <details>
 <summary><strong>Manual Setup (Alternative)</strong></summary>
 
 **Install globally:**
 ```bash
-npm install -g @colbymchenry/codegraph
+npm i -g codegraph-vba
 ```
 
 **Add to `~/.claude.json`:**
@@ -457,7 +461,7 @@ npm install -g @colbymchenry/codegraph
   "mcpServers": {
     "codegraph": {
       "type": "stdio",
-      "command": "codegraph",
+      "command": "codegraph-vba",
       "args": ["serve", "--mcp"]
     }
   }
@@ -487,9 +491,9 @@ CodeGraph's MCP server delivers its usage guidance to your agent **automatically
 - **Answer structural questions directly with CodeGraph** — it *is* the pre-built index, so a grep/read loop just repeats work it already did. Treat the returned source as already read.
 - **Reach for `codegraph_explore` for almost anything** — "how does X work", a flow/"how does X reach Y", or surveying an area. One call returns the relevant symbols' verbatim source grouped by file, the call paths between them (dynamic-dispatch hops included), and a blast-radius summary. Name a file or symbol in the query to read its current line-numbered source.
 - **Trust the results — don't re-verify with grep**, and check the staleness banner after edits.
-- Works **per project**: query any project that has a `.codegraph/` index by passing `projectPath` — so a monorepo where only some services are indexed, or a second repo, works in one session. A path with no index returns clean guidance to use built-in tools; indexing stays your decision.
+- Works **per project**: query any project that has a `.codegraph-vba/` index by passing `projectPath` — so a monorepo where only some services are indexed, or a second repo, works in one session. A path with no index returns clean guidance to use built-in tools; indexing stays your decision.
 
-The exact text is `src/mcp/server-instructions.ts` — the single source of truth for the main agent. Because subagents and non-MCP harnesses never see the MCP guidance, the installer also writes a short marker-fenced section into the agent's instructions file pointing at the `codegraph explore` CLI equivalent.
+The exact text is `src/mcp/server-instructions.ts` — the single source of truth for the main agent. Because subagents and non-MCP harnesses never see the MCP guidance, the installer also writes a short marker-fenced section into the agent's instructions file pointing at the `codegraph-vba explore` CLI equivalent.
 
 </details>
 
@@ -520,7 +524,7 @@ The exact text is `src/mcp/server-instructions.ts` — the single source of trut
 
 1. **Extraction** — [tree-sitter](https://tree-sitter.github.io/) parses source code into ASTs. Language-specific queries extract nodes (functions, classes, methods) and edges (calls, imports, extends, implements).
 
-2. **Storage** — Everything goes into a local SQLite database (`.codegraph/codegraph.db`) with FTS5 full-text search.
+2. **Storage** — Everything goes into a local SQLite database (`.codegraph-vba/codegraph.db`) with FTS5 full-text search.
 
 3. **Resolution** — After extraction, references are resolved: function calls → definitions, imports → source files, class inheritance, and framework-specific patterns.
 
@@ -531,38 +535,38 @@ The exact text is `src/mcp/server-instructions.ts` — the single source of trut
 ## CLI Reference
 
 ```bash
-codegraph                         # Run interactive installer
-codegraph install                 # Run installer (explicit)
-codegraph uninstall               # Remove CodeGraph from your agents (inverse of install)
-codegraph init [path]             # Initialize a project + build its graph (one step)
-codegraph uninit [path]           # Remove CodeGraph from a project (--force to skip prompt)
-codegraph index [path]            # Full index (--force to re-index, --quiet for less output)
-codegraph sync [path]             # Incremental update
-codegraph status [path]           # Show statistics
-codegraph unlock [path]           # Remove a stale lock file that's blocking indexing
-codegraph query <search>          # Search symbols (--kind, --limit, --json)
-codegraph explore <query>         # Relevant symbols' source + call paths in one shot (same output as the codegraph_explore MCP tool)
-codegraph node <symbol|file>      # One symbol's source + callers, or read a file with line numbers (same output as codegraph_node)
-codegraph files [path]            # Show file structure (--format, --filter, --max-depth, --json)
-codegraph callers <symbol>        # Find what calls a function/method (--limit, --json)
-codegraph callees <symbol>        # Find what a function/method calls (--limit, --json)
-codegraph impact <symbol>         # Analyze what code is affected by changing a symbol (--depth, --json)
-codegraph affected [files...]     # Find test files affected by changes (see below)
-codegraph daemon                  # Manage background daemons — pick one to stop (alias: daemons)
-codegraph telemetry [on|off]      # Show or change anonymous usage telemetry
-codegraph upgrade [version]       # Update to the latest release (--check, --force)
-codegraph version                 # Print the installed version (also -v, --version)
-codegraph help [command]          # Show help, optionally for one command
+codegraph-vba                         # Run interactive installer
+codegraph-vba install                 # Run installer (explicit)
+codegraph-vba uninstall               # Remove CodeGraph from your agents (inverse of install)
+codegraph-vba init [path]             # Initialize a project + build its graph (one step)
+codegraph-vba uninit [path]           # Remove CodeGraph from a project (--force to skip prompt)
+codegraph-vba index [path]            # Full index (--force to re-index, --quiet for less output)
+codegraph-vba sync [path]             # Incremental update
+codegraph-vba status [path]           # Show statistics
+codegraph-vba unlock [path]           # Remove a stale lock file that's blocking indexing
+codegraph-vba query <search>          # Search symbols (--kind, --limit, --json)
+codegraph-vba explore <query>         # Relevant symbols' source + call paths in one shot (same output as the codegraph_explore MCP tool)
+codegraph-vba node <symbol|file>      # One symbol's source + callers, or read a file with line numbers (same output as codegraph_node)
+codegraph-vba files [path]            # Show file structure (--format, --filter, --max-depth, --json)
+codegraph-vba callers <symbol>        # Find what calls a function/method (--limit, --json)
+codegraph-vba callees <symbol>        # Find what a function/method calls (--limit, --json)
+codegraph-vba impact <symbol>         # Analyze what code is affected by changing a symbol (--depth, --json)
+codegraph-vba affected [files...]     # Find test files affected by changes (see below)
+codegraph-vba daemon                  # Manage background daemons — pick one to stop (alias: daemons)
+codegraph-vba telemetry [on|off]      # Show or change anonymous usage telemetry
+codegraph-vba upgrade [version]       # Update to the latest release (--check, --force)
+codegraph-vba version                 # Print the installed version (also -v, --version)
+codegraph-vba help [command]          # Show help, optionally for one command
 ```
 
-### `codegraph affected`
+### `codegraph-vba affected`
 
 Traces import dependencies transitively to find which test files are affected by changed source files.
 
 ```bash
-codegraph affected src/utils.ts src/api.ts         # Pass files as arguments
-git diff --name-only | codegraph affected --stdin   # Pipe from git diff
-codegraph affected src/auth.ts --filter "e2e/*"     # Custom test file pattern
+codegraph-vba affected src/utils.ts src/api.ts         # Pass files as arguments
+git diff --name-only | codegraph-vba affected --stdin   # Pipe from git diff
+codegraph-vba affected src/auth.ts --filter "e2e/*"     # Custom test file pattern
 ```
 
 | Option | Description | Default |
@@ -577,7 +581,7 @@ codegraph affected src/auth.ts --filter "e2e/*"     # Custom test file pattern
 
 ```bash
 #!/usr/bin/env bash
-AFFECTED=$(git diff --name-only HEAD | codegraph affected --stdin --quiet)
+AFFECTED=$(git diff --name-only HEAD | codegraph-vba affected --stdin --quiet)
 if [ -n "$AFFECTED" ]; then
   npx vitest run $AFFECTED
 fi
@@ -593,9 +597,9 @@ When running as an MCP server, CodeGraph exposes a **single tool** — `codegrap
 |------|---------|
 | `codegraph_explore` | Answer almost any question in one call — "how does X work", a flow ("how does X reach Y"), or surveying an area — returning the relevant symbols' verbatim source grouped by file, plus the call paths between them and a blast-radius summary. Surfaces dynamic-dispatch hops (callbacks, React re-render, interface→impl) grep can't follow. Name a file or symbol in the query to read its current line-numbered source, the same shape the Read tool gives you. |
 
-The other tools (`codegraph_node`, `codegraph_search`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, `codegraph_status`) stay fully functional but **unlisted by default** — everything they return already arrives inline on `codegraph_explore` (its blast-radius section, the relationship map, a symbol's body as its callee list). Re-enable any of them for the MCP surface with the `CODEGRAPH_MCP_TOOLS` environment variable (e.g. `CODEGRAPH_MCP_TOOLS=explore,node,search,callers`), or use their CLI equivalents (`codegraph node` / `query` / `callers` / `callees` / `impact` / `files` / `status`).
+The other tools (`codegraph_node`, `codegraph_search`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, `codegraph_status`) stay fully functional but **unlisted by default** — everything they return already arrives inline on `codegraph_explore` (its blast-radius section, the relationship map, a symbol's body as its callee list). Re-enable any of them for the MCP surface with the `CODEGRAPH_MCP_TOOLS` environment variable (e.g. `CODEGRAPH_MCP_TOOLS=explore,node,search,callers`), or use their CLI equivalents (`codegraph-vba node` / `query` / `callers` / `callees` / `impact` / `files` / `status`).
 
-Even when the server's own root has no `.codegraph/` index, the tools stay available: pass `projectPath` to query any indexed project — a sub-service in a monorepo, or a second repo — in the same session. A path that has no index returns clean guidance to use built-in tools instead, so nothing fails loudly, and indexing stays your decision.
+Even when the server's own root has no `.codegraph-vba/` index, the tools stay available: pass `projectPath` to query any indexed project — a sub-service in a monorepo, or a second repo — in the same session. A path that has no index returns clean guidance to use built-in tools instead, so nothing fails loudly, and indexing stays your decision.
 
 ---
 
@@ -606,9 +610,9 @@ API, so both `import` and `require` resolve the `CodeGraph` class in your own
 process — handy for embedding it in an app (e.g. an Electron main process).
 
 ```typescript
-import CodeGraph from '@colbymchenry/codegraph';
+import CodeGraph from 'codegraph-vba';
 // CommonJS works too:
-//   const { CodeGraph } = require('@colbymchenry/codegraph');
+//   const { CodeGraph } = require('codegraph-vba');
 
 const cg = await CodeGraph.init('/path/to/project');
 // Or: const cg = await CodeGraph.open('/path/to/project');
@@ -633,7 +637,7 @@ that drive the graph directly: `DatabaseConnection`, `QueryBuilder`,
 
 **Embedding requirements**
 
-- Install from npm (`npm i @colbymchenry/codegraph`) so the matching
+- Install from npm (`npm i codegraph-vba`) so the matching
   per-platform package — which carries the compiled library and its
   dependencies — is fetched alongside the shim.
 - The API runs on **your** runtime, so it needs **Node 22.5+** for the built-in
@@ -700,7 +704,7 @@ defaults and win on conflict, so you can also re-point a built-in (e.g.
 `".h": "cpp"`). Commit the file to share the mapping with your team. A typo'd
 language or a malformed file is warned about and skipped — it never breaks
 indexing — and a project with no `codegraph.json` behaves exactly as before.
-Re-index (`codegraph index`) after adding or changing mappings.
+Re-index (`codegraph-vba index`) after adding or changing mappings.
 
 ## Telemetry
 
@@ -713,7 +717,7 @@ that enforces the documented field list. The installer asks up front; turn it
 off any time:
 
 ```bash
-codegraph telemetry off    # or: CODEGRAPH_TELEMETRY=0, or DO_NOT_TRACK=1
+codegraph-vba telemetry off    # or: CODEGRAPH_TELEMETRY=0, or DO_NOT_TRACK=1
 ```
 
 [`TELEMETRY.md`](TELEMETRY.md) lists every field, with the off-switches and the
@@ -809,30 +813,30 @@ Framework routing is validated the same way, on a canonical app per framework: E
 
 ## Troubleshooting
 
-**"CodeGraph not initialized"** — Run `codegraph init` in your project directory first.
+**"CodeGraph not initialized"** — Run `codegraph-vba init` in your project directory first.
 
 **Indexing is slow** — Check that `node_modules` and other large directories are excluded. Use `--quiet` to reduce output overhead.
 
 **MCP hits `database is locked`** — current builds shouldn't: CodeGraph bundles its own Node runtime and uses Node's built-in `node:sqlite` in WAL mode, where concurrent reads never block on a writer. If you still see it:
 
-- **You're on an old (pre-0.9) install.** Reinstall to get the bundled runtime — `curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh` (macOS/Linux), `irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex` (Windows), or `npm i -g @colbymchenry/codegraph@latest`.
-- **`codegraph status` shows `Journal:` other than `wal`** — WAL couldn't be enabled on this filesystem (common on network shares and WSL2 `/mnt`), so reads can block on writes. Move the project (with its `.codegraph/` folder) onto a local disk.
+- **You're on an old (pre-0.9) install.** Reinstall to get the bundled runtime — `curl -fsSL https://raw.githubusercontent.com/ardelperal/codegraph/main/install.sh | sh` (macOS/Linux), `irm https://raw.githubusercontent.com/ardelperal/codegraph/main/install.ps1 | iex` (Windows), or `npm i -g codegraph-vba@latest`.
+- **`codegraph-vba status` shows `Journal:` other than `wal`** — WAL couldn't be enabled on this filesystem (common on network shares and WSL2 `/mnt`), so reads can block on writes. Move the project (with its `.codegraph-vba/` folder) onto a local disk.
 
-**MCP server not connecting** — Your agent starts the server itself, so you don't launch it by hand. Make sure the project is initialized and indexed (`codegraph status`) and that the path in your MCP config is correct. If it still won't connect, re-run `codegraph install` to rewrite the config.
+**MCP server not connecting** — Your agent starts the server itself, so you don't launch it by hand. Make sure the project is initialized and indexed (`codegraph-vba status`) and that the path in your MCP config is correct. If it still won't connect, re-run `codegraph-vba install` to rewrite the config.
 
-**MCP tool calls fail with `Transport closed` while `codegraph status`/`sync` are healthy** — almost always WSL2 with the project on a Windows drive (a `/mnt/c` or `/mnt/d` path), where the local socket CodeGraph uses to share one background server across sessions is unreliable. CodeGraph now falls back to serving the session in-process instead of dropping the connection, but if you still hit it, set `CODEGRAPH_NO_DAEMON=1` in your MCP server's environment to skip the shared server entirely (each session runs in its own process). Moving the project onto the Linux-native filesystem (e.g. under `~/` instead of `/mnt/`) restores the shared server.
+**MCP tool calls fail with `Transport closed` while `codegraph-vba status`/`sync` are healthy** — almost always WSL2 with the project on a Windows drive (a `/mnt/c` or `/mnt/d` path), where the local socket CodeGraph uses to share one background server across sessions is unreliable. CodeGraph now falls back to serving the session in-process instead of dropping the connection, but if you still hit it, set `CODEGRAPH_NO_DAEMON=1` in your MCP server's environment to skip the shared server entirely (each session runs in its own process). Moving the project onto the Linux-native filesystem (e.g. under `~/` instead of `/mnt/`) restores the shared server.
 
-**Missing symbols** — The MCP server auto-syncs on save (wait a couple seconds). Run `codegraph sync` manually if needed. Check that the file's language is supported and isn't inside a `.gitignore`d or default-excluded directory (e.g. `node_modules`, `dist`).
+**Missing symbols** — The MCP server auto-syncs on save (wait a couple seconds). Run `codegraph-vba sync` manually if needed. Check that the file's language is supported and isn't inside a `.gitignore`d or default-excluded directory (e.g. `node_modules`, `dist`).
 
-**Sharing one checkout between Windows and WSL** — Don't point both at the same `.codegraph/`: the background-server lock and the SQLite index are tied to the OS that wrote them, and SQLite locking across the WSL2/Windows filesystem boundary is unreliable. Give each side its own index in the same tree by setting `CODEGRAPH_DIR` to a distinct name on one of them — e.g. `CODEGRAPH_DIR=.codegraph-win` on Windows, leaving WSL on the default `.codegraph`. CodeGraph skips any sibling `.codegraph-*` directory when indexing and watching, so the two never trip over each other.
+**Sharing one checkout between Windows and WSL** — Don't point both at the same `.codegraph-vba/`: the background-server lock and the SQLite index are tied to the OS that wrote them, and SQLite locking across the WSL2/Windows filesystem boundary is unreliable. Give each side its own index in the same tree by setting `CODEGRAPH_DIR` to a distinct name on one of them — e.g. `CODEGRAPH_DIR=.codegraph-win` on Windows, leaving WSL on the default `.codegraph-vba`. CodeGraph skips any sibling `.codegraph-*` directory when indexing and watching, so the two never trip over each other.
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=colbymchenry%2Fcodegraph&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=ardelperal%2Fcodegraph&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ardelperal/codegraph&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ardelperal/codegraph&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ardelperal/codegraph&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -846,6 +850,6 @@ MIT
 
 **Made for AI coding agents — Claude Code, Cursor, Codex CLI, opencode, Hermes Agent, Gemini CLI, Antigravity IDE, and Kiro**
 
-[Report Bug](https://github.com/colbymchenry/codegraph/issues) · [Request Feature](https://github.com/colbymchenry/codegraph/issues)
+[Report Bug](https://github.com/ardelperal/codegraph/issues) · [Request Feature](https://github.com/ardelperal/codegraph/issues)
 
 </div>
