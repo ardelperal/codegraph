@@ -147,7 +147,7 @@ jobs:
           bash scripts/pack-npm.sh "$V"
           # Platform packages first, then the main shim (which depends on them).
           # Skip any already on the registry so a re-run only fills in gaps.
-          for dir in release/npm/codegraph-vba-* release/npm/main; do
+          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
             name=$(node -p "require('./$dir/package.json').name")
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "skip $name@$V (already published)"
@@ -162,7 +162,7 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           # npm publish can print success without persisting; confirm against the
           # registry (with retries for propagation) so green means really shipped.
-          for dir in release/npm/codegraph-vba-* release/npm/main; do
+          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
             name=$(node -p "require('./$dir/package.json').name")
             ok=
             for i in 1 2 3 4 5 6; do
@@ -181,7 +181,7 @@ jobs:
         # from GitHub Releases — so a mirror hiccup never fails the release.
         continue-on-error: true
         run: |
-          for dir in release/npm/codegraph-vba-* release/npm/main; do
+          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
             name=$(node -p "require('./$dir/package.json').name")
             enc=$(node -p "encodeURIComponent(require('./$dir/package.json').name)")
             echo "sync $name"

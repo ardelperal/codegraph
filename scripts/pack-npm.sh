@@ -19,7 +19,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:-$(node -p "require('$ROOT/package.json').version")}"
-PKG="codegraph-vba"
+PKG="@aroman22/codegraph-vba"
 REL="$ROOT/release"
 NPM="$REL/npm"
 

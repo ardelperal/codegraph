@@ -28,7 +28,7 @@ var os = require('os');
 var fs = require('fs');
 
 var target = process.platform + '-' + process.arch; // e.g. darwin-arm64, linux-x64
-var pkg = 'codegraph-vba-' + target;
+var pkg = '@aroman22/codegraph-vba-' + target;
 
 module.exports = require(resolveLibrary());
 

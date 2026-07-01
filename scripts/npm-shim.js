@@ -32,7 +32,7 @@ var os = require('os');
 var path = require('path');
 
 var target = process.platform + '-' + process.arch; // e.g. darwin-arm64, linux-x64
-var pkg = 'codegraph-vba-' + target;
+var pkg = '@aroman22/codegraph-vba-' + target;
 var isWindows = process.platform === 'win32';
 var REPO = 'ardelperal/codegraph';
 
