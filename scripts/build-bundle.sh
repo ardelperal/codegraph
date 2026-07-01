@@ -135,6 +135,11 @@ if [ "$OSFAM" = "win32" ]; then
 else
   ARCHIVE="$OUT/codegraph-vba-${TARGET}.tar.gz"
   # --no-xattrs: don't embed macOS xattrs that make GNU tar warn on Linux.
-  tar --no-xattrs -czf "$ARCHIVE" -C "$WORK" "codegraph-vba-${TARGET}"
+  # --hard-dereference: replace hard links in node_modules (left over from
+  # `pnpm install --prod --config.node-linker=hoisted`) with copies of the
+  # target. npm's per-tarball publish endpoint rejects PUTs whose tarball
+  # contains hard links (HTTP 415 - Hard link is not allowed), so the bundle
+  # archive must be a flat tree of regular files.
+  tar --no-xattrs --hard-dereference -czf "$ARCHIVE" -C "$WORK" "codegraph-vba-${TARGET}"
 fi
 echo "[bundle] wrote ${ARCHIVE} ($(du -h "$ARCHIVE" | cut -f1))"
