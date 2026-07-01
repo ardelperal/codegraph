@@ -147,7 +147,12 @@ jobs:
           bash scripts/pack-npm.sh "$V"
           # Platform packages first, then the main shim (which depends on them).
           # Skip any already on the registry so a re-run only fills in gaps.
-          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
+          # `find` is used instead of a bash glob because paths containing `@`
+          # (scoped npm packages) don't always expand correctly inside the
+          # GitHub Actions bash subshell — node receives the literal pattern
+          # with `*` and `Cannot find module` errors out. `find` is portable.
+          while IFS= read -r dir; do
+            [ -d "$dir" ] || continue
             name=$(node -p "require('./$dir/package.json').name")
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "skip $name@$V (already published)"
@@ -155,14 +160,15 @@ jobs:
               echo "publishing $name@$V"
               ( cd "$dir" && npm publish --access public )
             fi
-          done
+          done < <(find release/npm -mindepth 2 -maxdepth 2 -type d | sort)
 
       - name: Verify every package is actually on the registry
         run: |
           V="${{ steps.ver.outputs.version }}"
           # npm publish can print success without persisting; confirm against the
           # registry (with retries for propagation) so green means really shipped.
-          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
+          while IFS= read -r dir; do
+            [ -d "$dir" ] || continue
             name=$(node -p "require('./$dir/package.json').name")
             ok=
             for i in 1 2 3 4 5 6; do
@@ -171,7 +177,7 @@ jobs:
             done
             [ -n "$ok" ] || { echo "::error::$name@$V never appeared on the registry"; exit 1; }
             echo "verified $name@$V"
-          done
+          done < <(find release/npm -mindepth 2 -maxdepth 2 -type d | sort)
 
       - name: Sync packages to npmmirror
         # npmmirror/cnpm mirror lazily and frequently never pull the per-platform
@@ -181,7 +187,8 @@ jobs:
         # from GitHub Releases — so a mirror hiccup never fails the release.
         continue-on-error: true
         run: |
-          for dir in release/npm/@aroman22/codegraph-vba-* release/npm/main; do
+          while IFS= read -r dir; do
+            [ -d "$dir" ] || continue
             name=$(node -p "require('./$dir/package.json').name")
             enc=$(node -p "encodeURIComponent(require('./$dir/package.json').name)")
             echo "sync $name"

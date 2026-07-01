@@ -29,15 +29,15 @@ function mkTmp(label: string): string {
 
 // A temp node_modules with the main package (npm-sdk.js + package.json). The
 // fake platform package, when present, is written as a resolvable sibling so the
-// SDK's `require.resolve('codegraph-vba-<target>/...')` walks to it.
+// SDK's `require.resolve('@aroman22/codegraph-vba-<target>/...')` walks to it.
 function makeConsumer(): { root: string; mainPkg: string } {
   const root = mkTmp('consumer');
-  const mainPkg = path.join(root, 'node_modules', 'codegraph-vba');
+  const mainPkg = path.join(root, 'node_modules', '@aroman22', 'codegraph-vba');
   fs.mkdirSync(mainPkg, { recursive: true });
   fs.copyFileSync(SDK_SRC, path.join(mainPkg, 'npm-sdk.js'));
   fs.writeFileSync(
     path.join(mainPkg, 'package.json'),
-    JSON.stringify({ name: 'codegraph-vba', version: VERSION, main: 'npm-sdk.js' }) + '\n'
+    JSON.stringify({ name: '@aroman22/codegraph-vba', version: VERSION, main: 'npm-sdk.js' }) + '\n'
   );
   return { root, mainPkg };
 }
@@ -53,11 +53,11 @@ function writeFakeLib(libDistDir: string, sentinel: string): void {
 }
 
 function installPlatformPackage(root: string, sentinel: string): void {
-  const pkgRoot = path.join(root, 'node_modules', `codegraph-vba-${target}`);
+  const pkgRoot = path.join(root, 'node_modules', '@aroman22', `codegraph-vba-${target}`);
   writeFakeLib(path.join(pkgRoot, 'lib', 'dist'), sentinel);
   fs.writeFileSync(
     path.join(pkgRoot, 'package.json'),
-    JSON.stringify({ name: `codegraph-vba-${target}`, version: VERSION }) + '\n'
+    JSON.stringify({ name: `@aroman22/codegraph-vba-${target}`, version: VERSION }) + '\n'
   );
 }
 
